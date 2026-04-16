@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hide & Seek — Cryptographic Playground</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #020408;
+  --bg2: #040c14;
+  --grid: rgba(0,200,255,0.04);
+  --cyan: #00e5ff;
+  --cyan2: #00b8d4;
+  --green: #00ff9d;
+  --red: #ff3366;
+  --amber: #ffb700;
+  --purple: #bb86fc;
+  --white: #e0f7ff;
+  --dim: rgba(224,247,255,0.4);
+  --panel: rgba(0,20,35,0.85);
+  --border: rgba(0,229,255,0.18);
+  --glow: 0 0 18px rgba(0,229,255,0.45);
+  --glow-green: 0 0 18px rgba(0,255,157,0.45);
+  --glow-red: 0 0 18px rgba(255,51,102,0.4);
+  --glow-purple: 0 0 18px rgba(187,134,252,0.45);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--white);font-family:'Rajdhani',sans-serif;min-height:100vh;overflow-x:hidden;position:relative;}
+
+#bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0.35;}
+.grid-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.scanlines{position:fixed;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:5;}
+.corner-deco{position:fixed;width:50px;height:50px;pointer-events:none;z-index:6;opacity:0.4;}
+.corner-deco.tl{top:12px;left:12px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);}
+.corner-deco.tr{top:12px;right:12px;border-top:2px solid var(--cyan);border-right:2px solid var(--cyan);}
+.corner-deco.bl{bottom:12px;left:12px;border-bottom:2px solid var(--cyan);border-left:2px solid var(--cyan);}
+.corner-deco.br{bottom:12px;right:12px;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan);}
+
+.page{display:none;position:relative;z-index:10;min-height:100vh;}
+.page.active{display:flex;flex-direction:column;}
+
+/* ═══ LOGO ═══ */
+.logo{font-family:'Orbitron',monospace;font-size:clamp(1.4rem,4vw,2.6rem);font-weight:900;letter-spacing:0.12em;color:var(--cyan);text-shadow:var(--glow),0 0 60px rgba(0,229,255,0.25);animation:pulse-logo 3s ease-in-out infinite;}
+@keyframes pulse-logo{0%,100%{text-shadow:var(--glow),0 0 60px rgba(0,229,255,0.25);}50%{text-shadow:0 0 25px rgba(0,229,255,0.9),0 0 80px rgba(0,229,255,0.4);}}
+.logo span{color:var(--green);}
+.tagline{font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--dim);letter-spacing:0.3em;margin-top:0.4rem;text-transform:uppercase;}
+.header-line{width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);margin-top:1.2rem;opacity:0.5;}
+.glitch-text{animation:glitch 8s infinite;}
+@keyframes glitch{0%,94%,100%{text-shadow:var(--glow);}95%{text-shadow:-2px 0 var(--red),2px 0 var(--green);transform:skewX(-1deg);}96%{text-shadow:2px 0 var(--red),-2px 0 var(--green);transform:skewX(1deg);}97%{text-shadow:var(--glow);transform:none;}}
+
+/* ══════════════════════════════════════════════
+   LOGIN PAGE
+══════════════════════════════════════════════ */
+#login.active{align-items:center;justify-content:center;}
+.login-wrapper{width:100%;max-width:440px;padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:2rem;}
+.login-header{text-align:center;}
+.login-icon{font-size:4rem;display:block;margin-bottom:1rem;filter:drop-shadow(0 0 20px var(--cyan));animation:icon-float 3s ease-in-out infinite;}
+@keyframes icon-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+.login-box{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2rem;backdrop-filter:blur(12px);box-shadow:0 0 40px rgba(0,229,255,0.08);}
+.login-title{font-family:'Orbitron',monospace;font-size:0.8rem;color:var(--cyan);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:1.8rem;text-align:center;}
+.form-group{margin-bottom:1.4rem;}
+.form-label{font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;display:block;margin-bottom:0.5rem;}
+.form-input{width:100%;background:rgba(0,15,30,0.9);border:1px solid var(--border);border-radius:3px;color:var(--white);font-family:'Share Tech Mono',monospace;font-size:0.9rem;padding:0.75rem 1rem;transition:border-color 0.2s,box-shadow 0.2s;outline:none;caret-color:var(--cyan);}
+.form-input:focus{border-color:var(--cyan2);box-shadow:0 0 12px rgba(0,229,255,0.2);}
+.form-input::placeholder{color:rgba(224,247,255,0.2);}
+.login-btn{width:100%;padding:0.9rem;background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:0.82rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;border-radius:3px;margin-top:0.5rem;position:relative;overflow:hidden;}
+.login-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.12),transparent);transition:left 0.4s;}
+.login-btn:hover::before{left:100%;}
+.login-btn:hover{background:rgba(0,229,255,0.1);box-shadow:var(--glow);}
+.login-hint{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:rgba(224,247,255,0.2);text-align:center;margin-top:1rem;letter-spacing:0.1em;}
+.login-err{font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--red);text-align:center;margin-top:0.8rem;display:none;}
+
+/* ══════════════════════════════════════════════
+   HOME PAGE (after login)
+══════════════════════════════════════════════ */
+#home.active{justify-content:flex-start;align-items:center;}
+header{text-align:center;padding:2.2rem 1rem 1rem;position:relative;}
+.logout-btn{position:absolute;top:1.5rem;right:1.5rem;font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:var(--dim);background:transparent;border:1px solid var(--border);padding:0.4rem 0.9rem;border-radius:2px;cursor:pointer;letter-spacing:0.1em;transition:all 0.2s;}
+.logout-btn:hover{color:var(--red);border-color:var(--red);}
+
+.home-cards{display:flex;gap:2.5rem;padding:3rem 2rem;width:100%;max-width:1100px;margin:0 auto;flex-wrap:wrap;justify-content:center;flex:1;align-items:center;}
+.home-card{flex:1 1 400px;max-width:480px;min-height:360px;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:2.5rem 2rem;cursor:pointer;position:relative;overflow:hidden;transition:all 0.35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:1.2rem;backdrop-filter:blur(8px);}
+.home-card::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.05),transparent);transition:left 0.5s ease;}
+.home-card:hover::before{left:100%;}
+.home-card:hover{border-color:var(--cyan);box-shadow:var(--glow),inset 0 0 40px rgba(0,229,255,0.05);transform:translateY(-4px);}
+.asym-card:hover{border-color:var(--purple);box-shadow:var(--glow-purple),inset 0 0 40px rgba(187,134,252,0.05);}
+.card-icon{font-size:3.5rem;filter:drop-shadow(0 0 12px currentColor);animation:icon-float 4s ease-in-out infinite;}
+.sym-card .card-icon{color:var(--cyan);}
+.asym-card .card-icon{color:var(--purple);}
+.card-title{font-family:'Orbitron',monospace;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;color:var(--white);}
+.card-number{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;opacity:0.15;position:absolute;top:1rem;right:1.2rem;}
+.card-desc{font-size:1rem;color:var(--dim);line-height:1.55;font-weight:300;}
+.card-methods{display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;margin-top:0.5rem;}
+.card-method-tag{font-family:'Share Tech Mono',monospace;font-size:0.6rem;padding:2px 8px;border-radius:2px;letter-spacing:0.08em;}
+.sym-tag{background:rgba(0,229,255,0.1);color:var(--cyan);border:1px solid rgba(0,229,255,0.25);}
+.asym-tag{background:rgba(187,134,252,0.1);color:var(--purple);border:1px solid rgba(187,134,252,0.25);}
+.card-btn{margin-top:0.8rem;padding:0.6rem 2rem;border:1px solid currentColor;background:transparent;border-radius:2px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;letter-spacing:0.15em;cursor:pointer;transition:all 0.2s;text-transform:uppercase;}
+.sym-card .card-btn{color:var(--cyan);}
+.asym-card .card-btn{color:var(--purple);}
+.home-card:hover .card-btn{background:rgba(0,229,255,0.1);}
+.asym-card:hover .card-btn{background:rgba(187,134,252,0.1);}
+.divider-v{width:1px;height:280px;background:linear-gradient(180deg,transparent,var(--border),var(--cyan2),var(--border),transparent);flex-shrink:0;align-self:center;position:relative;}
+.divider-v::after{content:'VS';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--cyan2);background:var(--bg);padding:4px 6px;letter-spacing:0.2em;}
+
+/* ══════════════════════════════════════════════
+   SUB-HOME: METHOD SELECTION PAGE
+══════════════════════════════════════════════ */
+#method-select.active{justify-content:flex-start;align-items:center;}
+.method-select-header{width:100%;max-width:1000px;margin:0 auto;padding:2rem 1.5rem 1rem;}
+.ms-mode-toggle{display:flex;gap:1rem;margin-top:1.5rem;justify-content:center;}
+.ms-tab{padding:0.6rem 1.6rem;border:1px solid var(--border);background:transparent;font-family:'Share Tech Mono',monospace;font-size:0.78rem;letter-spacing:0.12em;cursor:pointer;transition:all 0.2s;text-transform:uppercase;border-radius:2px;}
+.ms-tab.sym-active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.08);}
+.ms-tab.asym-active{border-color:var(--purple);color:var(--purple);background:rgba(187,134,252,0.08);}
+.ms-tab:not(.sym-active):not(.asym-active){color:var(--dim);}
+.ms-ops{display:flex;gap:0.8rem;justify-content:center;margin-top:1rem;}
+.ms-op-btn{padding:0.5rem 1.2rem;border:1px solid var(--border);background:transparent;font-family:'Share Tech Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;cursor:pointer;color:var(--dim);transition:all 0.2s;text-transform:uppercase;border-radius:2px;}
+.ms-op-btn.active-enc{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.07);}
+.ms-op-btn.active-dec{border-color:var(--green);color:var(--green);background:rgba(0,255,157,0.07);}
+.ms-op-btn.active-hash{border-color:var(--amber);color:var(--amber);background:rgba(255,183,0,0.07);}
+.method-select-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1.2rem;padding:1.5rem;width:100%;max-width:1000px;margin:0 auto;}
+.ms-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1.4rem 1.2rem;cursor:pointer;transition:all 0.25s;backdrop-filter:blur(6px);position:relative;overflow:hidden;}
+.ms-card::after{content:'→';position:absolute;bottom:0.8rem;right:1rem;font-size:1.2rem;opacity:0;transition:opacity 0.2s,transform 0.2s;transform:translateX(-5px);}
+.ms-card:hover::after{opacity:0.6;transform:translateX(0);}
+.ms-card:hover{transform:translateY(-3px);box-shadow:var(--glow);}
+.ms-card.sym-card-s:hover{border-color:var(--cyan);box-shadow:var(--glow);}
+.ms-card.asym-card-s:hover{border-color:var(--purple);box-shadow:var(--glow-purple);}
+.ms-card-icon{font-size:2rem;margin-bottom:0.8rem;display:block;}
+.ms-card-name{font-family:'Orbitron',monospace;font-size:0.78rem;font-weight:700;letter-spacing:0.08em;color:var(--white);margin-bottom:0.4rem;}
+.ms-card-desc{font-size:0.78rem;color:var(--dim);line-height:1.4;}
+.ms-badge{display:inline-block;margin-top:0.6rem;padding:2px 8px;border-radius:2px;font-family:'Share Tech Mono',monospace;font-size:0.58rem;letter-spacing:0.1em;}
+.badge-low{background:rgba(255,51,102,0.15);color:var(--red);border:1px solid rgba(255,51,102,0.3);}
+.badge-med{background:rgba(255,183,0,0.15);color:var(--amber);border:1px solid rgba(255,183,0,0.3);}
+.badge-high{background:rgba(0,255,157,0.15);color:var(--green);border:1px solid rgba(0,255,157,0.3);}
+.badge-max{background:rgba(0,229,255,0.15);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);}
+.badge-hash{background:rgba(255,183,0,0.15);color:var(--amber);border:1px solid rgba(255,183,0,0.3);}
+
+/* ══════════════════════════════════════════════
+   OPERATION PAGE
+══════════════════════════════════════════════ */
+.page-container{max-width:860px;margin:0 auto;padding:1.5rem 1.5rem 3rem;width:100%;flex:1;}
+.back-btn{display:inline-flex;align-items:center;gap:0.5rem;font-family:'Share Tech Mono',monospace;font-size:0.78rem;color:var(--dim);cursor:pointer;letter-spacing:0.12em;border:none;background:none;transition:color 0.2s;margin-bottom:1.8rem;text-transform:uppercase;}
+.back-btn:hover{color:var(--cyan);}
+.op-header{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+.op-title{font-family:'Orbitron',monospace;font-size:clamp(1rem,3vw,1.5rem);font-weight:900;color:var(--cyan);letter-spacing:0.1em;}
+.op-subtitle{font-size:0.85rem;color:var(--dim);margin-top:0.4rem;line-height:1.5;}
+.op-badge-row{display:flex;gap:0.5rem;margin-top:0.8rem;flex-wrap:wrap;}
+.info-box{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.12);border-radius:4px;padding:1rem 1.2rem;margin-bottom:1.5rem;font-size:0.82rem;color:var(--dim);line-height:1.55;}
+.info-box.purple-box{background:rgba(187,134,252,0.04);border-color:rgba(187,134,252,0.12);}
+.info-box strong{color:var(--white);}
+.section-title{font-family:'Orbitron',monospace;font-size:0.8rem;color:var(--cyan);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;}
+.section-title.purple{color:var(--purple);}
+.section-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent);}
+.styled-input,.styled-textarea{width:100%;background:rgba(0,15,30,0.8);border:1px solid var(--border);border-radius:3px;color:var(--white);font-family:'Share Tech Mono',monospace;font-size:0.85rem;padding:0.7rem 1rem;transition:border-color 0.2s,box-shadow 0.2s;outline:none;caret-color:var(--cyan);}
+.styled-input:focus,.styled-textarea:focus{border-color:var(--cyan2);box-shadow:0 0 10px rgba(0,229,255,0.15);}
+.styled-textarea{resize:vertical;min-height:110px;line-height:1.6;}
+.key-block{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.key-label{font-family:'Share Tech Mono',monospace;font-size:0.78rem;color:var(--cyan);letter-spacing:0.12em;white-space:nowrap;min-width:80px;}
+.key-input-wrap{flex:1;position:relative;min-width:200px;}
+.gen-btn{padding:0.65rem 1.2rem;border:1px solid var(--cyan2);background:transparent;color:var(--cyan);font-family:'Share Tech Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;text-transform:uppercase;border-radius:2px;white-space:nowrap;}
+.gen-btn:hover{background:rgba(0,229,255,0.1);}
+.action-btn{display:block;width:100%;padding:1rem;background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:0.9rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;border-radius:3px;margin-top:1.5rem;position:relative;overflow:hidden;}
+.action-btn.purple{border-color:var(--purple);color:var(--purple);}
+.action-btn.green{border-color:var(--green);color:var(--green);}
+.action-btn.amber{border-color:var(--amber);color:var(--amber);}
+.action-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.12),transparent);transition:left 0.4s;}
+.action-btn:hover::before{left:100%;}
+.action-btn:hover{background:rgba(0,229,255,0.08);box-shadow:var(--glow);}
+.action-btn.purple:hover{background:rgba(187,134,252,0.08);box-shadow:var(--glow-purple);}
+.action-btn.green:hover{background:rgba(0,255,157,0.08);box-shadow:var(--glow-green);}
+
+/* Output */
+.output-panel{margin-top:2.5rem;border:1px solid var(--border);border-radius:4px;background:rgba(0,10,20,0.7);overflow:hidden;backdrop-filter:blur(6px);display:none;animation:panel-reveal 0.4s ease forwards;}
+.output-panel.visible{display:block;}
+@keyframes panel-reveal{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+.output-header{background:rgba(0,229,255,0.08);border-bottom:1px solid var(--border);padding:0.8rem 1.2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;}
+.output-label{font-family:'Orbitron',monospace;font-size:0.72rem;color:var(--cyan);letter-spacing:0.2em;}
+.output-meta{font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:var(--dim);letter-spacing:0.1em;}
+.output-body{padding:1.5rem;}
+.cipher-display{font-family:'Share Tech Mono',monospace;font-size:0.82rem;line-height:1.7;color:var(--green);word-break:break-all;background:rgba(0,255,157,0.03);border:1px solid rgba(0,255,157,0.12);border-radius:3px;padding:1rem;position:relative;min-height:60px;text-shadow:0 0 8px rgba(0,255,157,0.3);}
+.cipher-display.purple-out{color:var(--purple);background:rgba(187,134,252,0.03);border-color:rgba(187,134,252,0.12);text-shadow:0 0 8px rgba(187,134,252,0.3);}
+.cipher-display.amber-out{color:var(--amber);background:rgba(255,183,0,0.03);border-color:rgba(255,183,0,0.15);text-shadow:0 0 8px rgba(255,183,0,0.3);}
+.copy-btn{position:absolute;top:8px;right:8px;background:rgba(0,20,35,0.9);border:1px solid var(--border);color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:0.65rem;padding:3px 8px;cursor:pointer;transition:all 0.2s;letter-spacing:0.1em;}
+.copy-btn:hover{color:var(--cyan);border-color:var(--cyan);}
+.key-display{margin-top:1.2rem;background:rgba(0,20,35,0.7);border:1px dashed var(--border);border-radius:3px;padding:0.8rem 1rem;font-family:'Share Tech Mono',monospace;font-size:0.78rem;color:var(--amber);word-break:break-all;display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap;}
+.key-info-label{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--dim);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.3rem;}
+.security-block{margin-top:1.5rem;border:1px solid var(--border);border-radius:3px;padding:1.2rem;background:rgba(0,10,25,0.5);}
+.security-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.9rem;}
+.security-title{font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;}
+.security-value{font-family:'Orbitron',monospace;font-size:1.4rem;font-weight:900;transition:color 0.3s;}
+.meter-track{width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;position:relative;}
+.meter-fill{height:100%;border-radius:4px;transition:width 1.2s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;}
+.meter-fill::after{content:'';position:absolute;top:0;left:-60%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);animation:shimmer 2s infinite;}
+@keyframes shimmer{to{left:160%;}}
+.security-bars{display:flex;gap:3px;margin-top:0.8rem;}
+.s-bar{flex:1;height:20px;border-radius:2px;transition:background 0.3s;}
+.security-annotations{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.6rem;margin-top:1.2rem;}
+.annot{font-size:0.73rem;color:var(--dim);line-height:1.4;display:flex;gap:0.4rem;align-items:flex-start;}
+.annot-icon{color:var(--cyan);font-size:0.85rem;flex-shrink:0;}
+
+/* Key pair display */
+.key-pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem;}
+.key-pair-box{background:rgba(0,15,30,0.8);border:1px solid var(--border);border-radius:3px;padding:1rem;}
+.kp-label{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--dim);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem;}
+.kp-value{font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--amber);word-break:break-all;line-height:1.5;}
+.kp-value.pub{color:var(--cyan);}
+@media(max-width:600px){.key-pair-grid{grid-template-columns:1fr;}}
+
+/* DH steps */
+.dh-step{background:rgba(0,15,30,0.6);border:1px solid var(--border);border-radius:3px;padding:0.9rem 1rem;margin-bottom:0.8rem;}
+.dh-step-label{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--purple);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.4rem;}
+.dh-step-val{font-family:'Share Tech Mono',monospace;font-size:0.8rem;color:var(--white);}
+.dh-shared{border-color:var(--green);background:rgba(0,255,157,0.04);}
+.dh-shared .dh-step-label{color:var(--green);}
+
+/* Hash output */
+.hash-display{font-family:'Share Tech Mono',monospace;font-size:0.88rem;color:var(--amber);word-break:break-all;background:rgba(255,183,0,0.03);border:1px solid rgba(255,183,0,0.15);border-radius:3px;padding:1rem;position:relative;text-shadow:0 0 8px rgba(255,183,0,0.3);letter-spacing:0.05em;}
+
+/* noise indicator */
+.noise-indicator{display:inline-flex;align-items:center;gap:4px;margin-top:0.5rem;}
+.noise-dot{width:6px;height:6px;border-radius:50%;animation:noise-pulse 1.2s ease-in-out infinite;}
+.noise-dot:nth-child(2){animation-delay:0.2s;}
+.noise-dot:nth-child(3){animation-delay:0.4s;}
+@keyframes noise-pulse{0%,100%{opacity:0.3;transform:scale(0.8);}50%{opacity:1;transform:scale(1.2);}}
+
+@media(max-width:700px){.divider-v{display:none;}.home-cards{gap:1.5rem;}.ms-ops{flex-wrap:wrap;}}
+
+/* ══════════════════════════════════════════════
+   THREE-DOTS BUTTON
+══════════════════════════════════════════════ */
+.three-dots-btn{
+  position:absolute;top:10px;right:10px;
+  width:28px;height:28px;
+  background:rgba(0,15,30,0.7);
+  border:1px solid var(--border);
+  border-radius:50%;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:3px;
+  z-index:20;
+  transition:all 0.2s;
+  padding:0;
+}
+.three-dots-btn:hover{border-color:var(--cyan);background:rgba(0,229,255,0.12);box-shadow:0 0 10px rgba(0,229,255,0.3);}
+.three-dots-btn .dot{width:3.5px;height:3.5px;border-radius:50%;background:var(--dim);transition:background 0.2s;}
+.three-dots-btn:hover .dot{background:var(--cyan);}
+
+/* ══════════════════════════════════════════════
+   ALGORITHM MODAL
+══════════════════════════════════════════════ */
+.algo-modal-overlay{
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(2,4,8,0.88);
+  backdrop-filter:blur(10px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.3s ease;
+}
+.algo-modal-overlay.open{opacity:1;pointer-events:all;}
+.algo-modal{
+  width:min(780px,96vw);
+  max-height:88vh;
+  background:linear-gradient(135deg,rgba(0,20,40,0.98),rgba(2,8,20,0.98));
+  border:1px solid var(--border);
+  border-radius:8px;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  box-shadow:0 0 60px rgba(0,229,255,0.12),inset 0 0 80px rgba(0,229,255,0.02);
+  transform:scale(0.92) translateY(20px);
+  transition:transform 0.35s cubic-bezier(.34,1.56,.64,1);
+}
+.algo-modal-overlay.open .algo-modal{transform:scale(1) translateY(0);}
+.algo-modal-head{
+  padding:1.2rem 1.5rem;
+  background:rgba(0,229,255,0.06);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.algo-modal-head.purple-head{background:rgba(187,134,252,0.06);border-bottom-color:rgba(187,134,252,0.2);}
+.algo-modal-title{font-family:'Orbitron',monospace;font-size:0.92rem;font-weight:900;letter-spacing:0.12em;color:var(--cyan);}
+.algo-modal-title.purple{color:var(--purple);}
+.algo-modal-subtitle{font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--dim);letter-spacing:0.15em;margin-top:0.2rem;}
+.algo-modal-close{
+  width:32px;height:32px;border-radius:50%;
+  background:transparent;border:1px solid var(--border);
+  color:var(--dim);font-size:1.1rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;flex-shrink:0;
+}
+.algo-modal-close:hover{border-color:var(--red);color:var(--red);background:rgba(255,51,102,0.1);}
+.algo-modal-body{
+  overflow-y:auto;
+  padding:1.5rem;
+  flex:1;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border) transparent;
+}
+.algo-modal-body::-webkit-scrollbar{width:4px;}
+.algo-modal-body::-webkit-scrollbar-track{background:transparent;}
+.algo-modal-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* Sections inside modal */
+.algo-section{margin-bottom:1.8rem;}
+.algo-section-title{
+  font-family:'Orbitron',monospace;font-size:0.7rem;
+  color:var(--cyan);letter-spacing:0.25em;
+  text-transform:uppercase;margin-bottom:0.9rem;
+  display:flex;align-items:center;gap:0.6rem;
+}
+.algo-section-title.purple{color:var(--purple);}
+.algo-section-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent);}
+.algo-para{font-size:0.83rem;color:var(--dim);line-height:1.7;margin-bottom:0.8rem;}
+.algo-para strong{color:var(--white);}
+.algo-para code{font-family:'Share Tech Mono',monospace;font-size:0.78rem;color:var(--cyan);background:rgba(0,229,255,0.07);padding:1px 5px;border-radius:2px;}
+
+/* Architecture flow diagram */
+.arch-flow{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin:1rem 0;}
+.arch-box{
+  background:rgba(0,20,40,0.8);border:1px solid var(--border);
+  border-radius:4px;padding:0.55rem 0.9rem;
+  font-family:'Share Tech Mono',monospace;font-size:0.7rem;
+  color:var(--white);text-align:center;min-width:80px;
+  transition:border-color 0.2s;white-space:nowrap;
+}
+.arch-box.highlight{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.08);}
+.arch-box.highlight.purple{border-color:var(--purple);color:var(--purple);background:rgba(187,134,252,0.08);}
+.arch-box.highlight.green{border-color:var(--green);color:var(--green);background:rgba(0,255,157,0.08);}
+.arch-box.highlight.amber{border-color:var(--amber);color:var(--amber);background:rgba(255,183,0,0.08);}
+.arch-arrow{color:var(--border);font-size:1.1rem;padding:0 0.3rem;flex-shrink:0;}
+.arch-stack{display:flex;flex-direction:column;gap:0.5rem;}
+.arch-row{display:flex;align-items:center;flex-wrap:wrap;gap:0;}
+
+/* Specs table */
+.specs-table{width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:0.5rem;}
+.specs-table th{font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--dim);letter-spacing:0.12em;text-transform:uppercase;padding:0.5rem 0.8rem;border-bottom:1px solid var(--border);text-align:left;}
+.specs-table td{padding:0.55rem 0.8rem;border-bottom:1px solid rgba(0,229,255,0.05);color:var(--dim);vertical-align:top;line-height:1.5;}
+.specs-table td:first-child{color:var(--white);font-family:'Share Tech Mono',monospace;font-size:0.75rem;white-space:nowrap;}
+.specs-table td strong{color:var(--cyan);}
+.specs-table td strong.purple{color:var(--purple);}
+.specs-table td strong.green{color:var(--green);}
+.specs-table td strong.amber{color:var(--amber);}
+.specs-table td strong.red{color:var(--red);}
+.specs-table tr:last-child td{border-bottom:none;}
+
+/* Rounds visual */
+.rounds-visual{display:flex;gap:4px;flex-wrap:wrap;margin:0.8rem 0;}
+.round-pill{font-family:'Share Tech Mono',monospace;font-size:0.58rem;padding:3px 7px;border-radius:12px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--cyan);letter-spacing:0.05em;}
+.round-pill.purple{background:rgba(187,134,252,0.08);border-color:rgba(187,134,252,0.2);color:var(--purple);}
+.round-pill.amber{background:rgba(255,183,0,0.08);border-color:rgba(255,183,0,0.2);color:var(--amber);}
+
+@media(max-width:600px){.arch-flow{gap:4px;}.arch-box{font-size:0.62rem;padding:0.4rem 0.6rem;min-width:60px;}}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="grid-overlay"></div>
+<div class="scanlines"></div>
+<div class="corner-deco tl"></div>
+<div class="corner-deco tr"></div>
+<div class="corner-deco bl"></div>
+<div class="corner-deco br"></div>
+
+<!-- ══════════════════ LOGIN PAGE ══════════════════ -->
+<div id="login" class="page active">
+  <div class="login-wrapper">
+    <div class="login-header">
+      <span class="login-icon">🙈</span>
+      <div class="logo glitch-text">HIDE <span>&</span> SEEK</div>
+      <div class="tagline">Cryptographic Playground — v2.0</div>
+    </div>
+    <div class="login-box">
+      <div class="login-title">⟨ Access Terminal ⟩</div>
+      <div class="form-group">
+        <label class="form-label" for="l-user">Username</label>
+        <input class="form-input" type="text" id="l-user" placeholder="Enter username..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="l-pass">Password</label>
+        <input class="form-input" type="password" id="l-pass" placeholder="Enter password..."/>
+      </div>
+      <button class="login-btn" onclick="doLogin()">⟶ INITIATE SESSION</button>
+      <div class="login-err" id="login-err">⚠ Invalid credentials. Try: admin / 1234</div>
+      <div class="login-hint">Hint: username = admin &nbsp;|&nbsp; password = 1234</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ HOME PAGE ══════════════════ -->
+<div id="home" class="page">
+  <header>
+    <div class="logo glitch-text">HIDE <span>&</span> SEEK</div>
+    <div class="tagline">Choose Your Cryptographic Domain</div>
+    <div class="header-line"></div>
+    <button class="logout-btn" onclick="doLogout()">⏻ LOGOUT</button>
+  </header>
+  <div class="home-cards">
+    <div class="home-card sym-card" onclick="goMethodSelect('symmetric')">
+      <div class="card-number">1</div>
+      <div class="card-icon">🔑</div>
+      <div class="card-title">SYMMETRIC KEY CRYPTOGRAPHY</div>
+      <div class="card-desc">Single shared key for both encryption and decryption. Blazing fast for large data.</div>
+      <div class="card-methods">
+        <span class="card-method-tag sym-tag">AES</span>
+        <span class="card-method-tag sym-tag">DES</span>
+        <span class="card-method-tag sym-tag">Blowfish</span>
+        <span class="card-method-tag sym-tag">JCA</span>
+        <span class="card-method-tag sym-tag">SHA-1</span>
+      </div>
+      <button class="card-btn">ENTER →</button>
+    </div>
+    <div class="divider-v"></div>
+    <div class="home-card asym-card" onclick="goMethodSelect('asymmetric')">
+      <div class="card-number">2</div>
+      <div class="card-icon">🗝️</div>
+      <div class="card-title">ASYMMETRIC KEY CRYPTOGRAPHY</div>
+      <div class="card-desc">Public/private key pairs. Encrypt with one, decrypt with the other. Secure key exchange.</div>
+      <div class="card-methods">
+        <span class="card-method-tag asym-tag">RSA</span>
+        <span class="card-method-tag asym-tag">Diffie-Hellman</span>
+      </div>
+      <button class="card-btn">ENTER →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ METHOD SELECT PAGE ══════════════════ -->
+<div id="method-select" class="page">
+  <header>
+    <div class="logo glitch-text">HIDE <span>&</span> SEEK</div>
+    <div class="tagline" id="ms-tagline">Select Method &amp; Operation</div>
+    <div class="header-line"></div>
+  </header>
+  <div class="method-select-header">
+    <div class="ms-ops" id="ms-ops-row">
+      <!-- populated by JS -->
+    </div>
+  </div>
+  <div class="method-select-grid" id="ms-grid">
+    <!-- populated by JS -->
+  </div>
+</div>
+
+<!-- ══════════════════ OPERATION PAGE ══════════════════ -->
+<div id="operation" class="page">
+  <header>
+    <div class="logo glitch-text">HIDE <span>&</span> SEEK</div>
+    <div class="tagline" id="op-mode-label">Encryption</div>
+    <div class="header-line"></div>
+  </header>
+  <div class="page-container">
+    <button class="back-btn" onclick="goTo('method-select')">← BACK TO METHODS</button>
+    <div class="op-header">
+      <div class="op-title" id="op-title">AES ENCRYPTION</div>
+      <div class="op-subtitle" id="op-subtitle"></div>
+      <div class="op-badge-row" id="op-badge-row"></div>
+    </div>
+    <div class="info-box" id="op-info-box"></div>
+    <div id="op-body"><!-- dynamic --></div>
+  </div>
+</div>
+
+<!-- ══════════════════ ALGORITHM MODAL ══════════════════ -->
+<div class="algo-modal-overlay" id="algo-modal-overlay" onclick="closeAlgoModal(event)">
+  <div class="algo-modal" id="algo-modal">
+    <div class="algo-modal-head" id="algo-modal-head">
+      <div>
+        <div class="algo-modal-title" id="algo-modal-title">ALGORITHM INFO</div>
+        <div class="algo-modal-subtitle" id="algo-modal-subtitle"></div>
+      </div>
+      <button class="algo-modal-close" onclick="closeAlgoModal(null)">✕</button>
+    </div>
+    <div class="algo-modal-body" id="algo-modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//                    LOGIN LOGIC
+// ═══════════════════════════════════════════════════════
+let loggedIn = false;
+function doLogin() {
+  const u = document.getElementById('l-user').value.trim();
+  const p = document.getElementById('l-pass').value.trim();
+  const err = document.getElementById('login-err');
+  if (u === 'admin' && p === '1234') {
+    loggedIn = true; err.style.display = 'none';
+    goTo('home');
+  } else {
+    err.style.display = 'block';
+    const box = document.querySelector('.login-box');
+    box.style.animation = 'none';
+    box.style.borderColor = 'var(--red)';
+    box.style.boxShadow = '0 0 20px rgba(255,51,102,0.3)';
+    setTimeout(() => { box.style.borderColor = ''; box.style.boxShadow = ''; }, 800);
+  }
+}
+document.getElementById('l-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('l-user').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('l-pass').focus(); });
+
+function doLogout() { loggedIn = false; goTo('login'); document.getElementById('l-user').value=''; document.getElementById('l-pass').value=''; }
+
+// ═══════════════════════════════════════════════════════
+//                    PAGE NAVIGATION
+// ═══════════════════════════════════════════════════════
+function goTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(page).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ═══════════════════════════════════════════════════════
+//                  METHOD DEFINITIONS
+// ═══════════════════════════════════════════════════════
+const SYMMETRIC_METHODS = [
+  {
+    id:'aes', name:'AES', fullName:'Advanced Encryption Standard',
+    icon:'🛡️', badge:'badge-max', badgeText:'MILITARY-GRADE',
+    type:'sym', ops:['encrypt','decrypt'],
+    desc:'128/256-bit block cipher. Used by governments worldwide.',
+    info:'AES operates on 128-bit blocks in 10/12/14 rounds of SubBytes, ShiftRows, MixColumns, and AddRoundKey transformations. It is the <strong>current global standard</strong> for symmetric encryption.',
+    security:95,
+    annotations:['✦ Block cipher — 128-bit blocks','✦ 10 rounds (AES-128)','✦ Brute-force infeasible','✦ Used in TLS, WPA2, banking']
+  },
+  {
+    id:'des', name:'DES', fullName:'Data Encryption Standard',
+    icon:'🔐', badge:'badge-low', badgeText:'LEGACY / WEAK',
+    type:'sym', ops:['encrypt','decrypt'],
+    desc:'56-bit key Feistel cipher. Historical standard, now deprecated.',
+    info:'DES uses a <strong>56-bit key</strong> and 16 rounds of Feistel network. Key size is too small for modern security — cracked in 22 hours by distributed computing in 1999. Use <strong>3DES or AES</strong> instead.',
+    security:15,
+    annotations:['⚠ 56-bit key — vulnerable','⚠ Cracked in 1999 by EFF','⚠ Deprecated by NIST','✦ Historical — still taught']
+  },
+  {
+    id:'blowfish', name:'Blowfish', fullName:'Blowfish Cipher',
+    icon:'🐡', badge:'badge-high', badgeText:'STRONG',
+    type:'sym', ops:['encrypt','decrypt'],
+    desc:'64-bit block, variable key (32–448 bits). Fast & royalty-free.',
+    info:'Designed by Bruce Schneier in 1993. Blowfish uses a <strong>Feistel structure with 16 rounds</strong> and a variable-length key from 32 to 448 bits. It is unpatented and freely available — popular in password hashing (bcrypt).',
+    security:78,
+    annotations:['✦ Variable key 32–448 bits','✦ 16 rounds Feistel','✦ No license fees','✦ Used in bcrypt']
+  },
+  {
+    id:'jca', name:'JCA', fullName:'Java Cryptography Architecture',
+    icon:'☕', badge:'badge-med', badgeText:'FRAMEWORK',
+    type:'sym', ops:['encrypt','decrypt'],
+    desc:'Java\'s unified API framework for cryptographic operations.',
+    info:'JCA is <strong>not an algorithm itself</strong> but a provider-based cryptographic framework in Java. It unifies access to algorithms like AES, RSA, SHA via <code>Cipher.getInstance("AES/CBC/PKCS5Padding")</code>. Simulated here with AES-CBC mode.',
+    security:82,
+    annotations:['✦ Provider-based architecture','✦ Pluggable algorithm backends','✦ CBC mode with IV','✦ PKCS5 padding']
+  },
+  {
+    id:'sha1', name:'SHA-1', fullName:'Secure Hash Algorithm 1',
+    icon:'#️⃣', badge:'badge-med', badgeText:'HASH ONLY',
+    type:'sym', ops:['hash'],
+    desc:'160-bit cryptographic hash function. One-way — not encryption.',
+    info:'SHA-1 produces a <strong>160-bit (40 hex char) digest</strong>. It is a one-way function — you cannot reverse it. Collision attacks were demonstrated in 2017 (SHAttered). Used for checksums and legacy digital signatures.',
+    security:45,
+    annotations:['⚠ Collision attacks found 2017','✦ 160-bit output (40 hex chars)','✦ One-way — no decryption','✦ Still used for checksums']
+  }
+];
+const ASYMMETRIC_METHODS = [
+  {
+    id:'rsa', name:'RSA', fullName:'Rivest–Shamir–Adleman',
+    icon:'🔏', badge:'badge-max', badgeText:'GOLD STANDARD',
+    type:'asym', ops:['encrypt','decrypt'],
+    desc:'Public/private key encryption based on prime factorisation.',
+    info:'RSA security relies on the computational difficulty of <strong>factoring large integers</strong>. A public key (n, e) encrypts; a private key (n, d) decrypts. Key sizes of 2048+ bits are recommended for modern security.',
+    security:92,
+    annotations:['✦ Based on prime factorisation','✦ Public & private key pair','✦ 2048-bit recommended','✦ Used in HTTPS, SSH, PGP']
+  },
+  {
+    id:'dh', name:'Diffie-Hellman', fullName:'Diffie-Hellman Key Exchange',
+    icon:'🤝', badge:'badge-high', badgeText:'KEY EXCHANGE',
+    type:'asym', ops:['keygen'],
+    desc:'Secure key exchange over public channel. No prior shared secret.',
+    info:'Two parties each generate a private value and compute a public value using modular exponentiation. They exchange public values and compute the same <strong>shared secret</strong> — without ever transmitting it directly.',
+    security:88,
+    annotations:['✦ No shared secret transmitted','✦ Discrete log problem','✦ Basis for TLS, Signal, PGP','✦ Forward secrecy when ephemeral']
+  }
+];
+
+let currentCategory = 'symmetric';
+let currentOp = 'encrypt';
+let currentMethod = null;
+
+function goMethodSelect(category) {
+  currentCategory = category;
+  document.getElementById('ms-tagline').textContent =
+    category === 'symmetric' ? 'Symmetric Key Cryptography — Choose Method' : 'Asymmetric Key Cryptography — Choose Method';
+  const methods = category === 'symmetric' ? SYMMETRIC_METHODS : ASYMMETRIC_METHODS;
+  // Build ops
+  const ops = [...new Set(methods.flatMap(m => m.ops))];
+  currentOp = ops[0];
+  const opsRow = document.getElementById('ms-ops-row');
+  opsRow.innerHTML = ops.map(op => {
+    const lbl = op === 'encrypt' ? '⚡ ENCRYPT' : op === 'decrypt' ? '🔓 DECRYPT' : op === 'hash' ? '# HASH' : '🔑 KEY EXCHANGE';
+    const cls = op === currentOp ? (op === 'hash' ? 'ms-op-btn active-hash' : op === 'decrypt' ? 'ms-op-btn active-dec' : 'ms-op-btn active-enc') : 'ms-op-btn';
+    return `<button class="${cls}" onclick="setOp('${op}')">${lbl}</button>`;
+  }).join('');
+  renderMethodGrid(category, currentOp);
+  goTo('method-select');
+}
+
+function setOp(op) {
+  currentOp = op;
+  document.querySelectorAll('.ms-op-btn').forEach(b => b.className = 'ms-op-btn');
+  event.target.className = 'ms-op-btn ' + (op === 'hash' ? 'active-hash' : op === 'decrypt' ? 'active-dec' : 'active-enc');
+  renderMethodGrid(currentCategory, op);
+}
+
+function renderMethodGrid(category, op) {
+  const methods = (category === 'symmetric' ? SYMMETRIC_METHODS : ASYMMETRIC_METHODS).filter(m => m.ops.includes(op));
+  const grid = document.getElementById('ms-grid');
+  const cardClass = category === 'symmetric' ? 'sym-card-s' : 'asym-card-s';
+  grid.innerHTML = methods.map(m => `
+    <div class="ms-card ${cardClass}" onclick="goOperation('${m.id}')">
+      <button class="three-dots-btn" onclick="event.stopPropagation();openAlgoModal('${m.id}')" title="View Algorithm & Architecture">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </button>
+      <span class="ms-card-icon">${m.icon}</span>
+      <div class="ms-card-name">${m.name}</div>
+      <div class="ms-card-desc">${m.desc}</div>
+      <span class="ms-badge ${m.badge}">${m.badgeText}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//               OPERATION PAGE BUILDER
+// ═══════════════════════════════════════════════════════
+function goOperation(methodId) {
+  const allMethods = [...SYMMETRIC_METHODS, ...ASYMMETRIC_METHODS];
+  currentMethod = allMethods.find(m => m.id === methodId);
+  const m = currentMethod;
+  const op = currentOp;
+  const isSym = m.type === 'sym';
+  const colorVar = isSym ? 'var(--cyan)' : 'var(--purple)';
+  const opLabel = op === 'encrypt' ? '⚡ Encryption' : op === 'decrypt' ? '🔓 Decryption' : op === 'hash' ? '# Hashing' : '🔑 Key Exchange';
+
+  document.getElementById('op-mode-label').textContent = `${m.name} — ${opLabel}`;
+  document.getElementById('op-title').textContent = `${m.name} ${opLabel.replace(/[⚡🔓#🔑]\s*/,'')}`.toUpperCase();
+  document.getElementById('op-title').style.color = colorVar;
+  document.getElementById('op-subtitle').textContent = `${m.fullName} · ${m.badgeText}`;
+  document.getElementById('op-badge-row').innerHTML = `<span class="ms-badge ${m.badge}">${m.badgeText}</span>`;
+  document.getElementById('op-info-box').className = 'info-box' + (isSym ? '' : ' purple-box');
+  document.getElementById('op-info-box').innerHTML = m.info;
+
+  let body = '';
+  if (op === 'encrypt') body = buildEncryptUI(m, isSym);
+  else if (op === 'decrypt') body = buildDecryptUI(m, isSym);
+  else if (op === 'hash') body = buildHashUI(m);
+  else if (op === 'keygen') body = buildDHUI(m);
+
+  document.getElementById('op-body').innerHTML = body;
+  goTo('operation');
+}
+
+function buildEncryptUI(m, isSym) {
+  const btn = isSym ? 'action-btn' : 'action-btn purple';
+  const keyNote = m.id === 'jca' ? 'Secret key (will be used as AES-CBC seed)' : m.id === 'blowfish' ? 'Key (max 56 chars for simulation)' : 'Secret key (word or phrase)';
+  return `
+    <div class="section-title ${isSym ? '' : 'purple'}">📝 Plaintext Input</div>
+    <div style="margin-bottom:1.5rem">
+      <textarea class="styled-textarea" id="plain-text" placeholder="Type your secret message here..."></textarea>
+    </div>
+    <div class="section-title ${isSym ? '' : 'purple'}">🔑 Encryption Key</div>
+    <div class="key-block">
+      <span class="key-label">KEY</span>
+      <div class="key-input-wrap">
+        <input class="styled-input" type="text" id="enc-key" placeholder="${keyNote}"/>
+      </div>
+      <button class="gen-btn" onclick="generateKey()">⚙ GENERATE</button>
+    </div>
+    <button class="${btn}" onclick="doEncrypt()">⚡ ENCRYPT MESSAGE</button>
+    <div class="output-panel" id="enc-output">
+      <div class="output-header">
+        <span class="output-label">🔒 ENCRYPTED OUTPUT</span>
+        <span class="output-meta" id="enc-meta"></span>
+      </div>
+      <div class="output-body">
+        <div class="cipher-display ${isSym ? '' : 'purple-out'}" id="cipher-text-val" onclick="copyText('cipher-text-val')">
+          <button class="copy-btn">COPY</button>
+          <span></span>
+        </div>
+        <div class="key-display" id="enc-key-disp">
+          <div><div class="key-info-label">Key Used</div><span id="used-key-display"></span></div>
+        </div>
+        <div class="security-block">
+          <div class="security-header">
+            <span class="security-title">◈ SECURITY STRENGTH</span>
+            <span class="security-value" id="sec-percent">0%</span>
+          </div>
+          <div class="meter-track"><div class="meter-fill" id="sec-meter" style="width:0%"></div></div>
+          <div class="security-bars" id="sec-bars"></div>
+          <div class="security-annotations" id="sec-annotations"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildDecryptUI(m, isSym) {
+  const btn = isSym ? 'action-btn green' : 'action-btn purple';
+  return `
+    <div class="section-title ${isSym ? '' : 'purple'}">🔒 Ciphertext Input</div>
+    <div style="margin-bottom:1.5rem">
+      <textarea class="styled-textarea" id="cipher-input" placeholder="Paste encrypted ciphertext here..."></textarea>
+    </div>
+    <div class="section-title ${isSym ? '' : 'purple'}">🔑 Decryption Key</div>
+    <div class="key-block">
+      <span class="key-label">KEY</span>
+      <div class="key-input-wrap">
+        <input class="styled-input" type="text" id="dec-key" placeholder="Enter the same key used for encryption..."/>
+      </div>
+    </div>
+    <button class="${btn}" onclick="doDecrypt()">🔓 DECRYPT MESSAGE</button>
+    <div class="output-panel" id="dec-output">
+      <div class="output-header">
+        <span class="output-label">✅ DECRYPTED OUTPUT</span>
+        <span class="output-meta" id="dec-meta"></span>
+      </div>
+      <div class="output-body">
+        <div class="cipher-display" id="dec-result-val" onclick="copyText('dec-result-val')">
+          <button class="copy-btn">COPY</button>
+          <span></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildHashUI(m) {
+  return `
+    <div class="section-title">📝 Input to Hash</div>
+    <div style="margin-bottom:1.5rem">
+      <textarea class="styled-textarea" id="hash-input" placeholder="Enter any text to compute its SHA-1 hash..."></textarea>
+    </div>
+    <button class="action-btn amber" onclick="doHash()">⚙ COMPUTE HASH</button>
+    <div class="output-panel" id="hash-output">
+      <div class="output-header">
+        <span class="output-label"># HASH OUTPUT</span>
+        <span class="output-meta">SHA-1 · 160-bit · 40 hex chars</span>
+      </div>
+      <div class="output-body">
+        <div class="hash-display" id="hash-result-val"></div>
+        <div class="security-block" style="margin-top:1.2rem">
+          <div class="security-header">
+            <span class="security-title">◈ HASH STRENGTH</span>
+            <span class="security-value" style="color:var(--amber)">45%</span>
+          </div>
+          <div class="meter-track"><div class="meter-fill" style="width:45%;background:linear-gradient(90deg,#cc7700,#ffb700)"></div></div>
+          <div class="security-annotations" style="margin-top:1rem">
+            <div class="annot"><span class="annot-icon" style="color:var(--amber)">⚠</span><span>Collision attacks demonstrated (SHAttered 2017)</span></div>
+            <div class="annot"><span class="annot-icon" style="color:var(--amber)">✦</span><span>One-way — cannot be reversed</span></div>
+            <div class="annot"><span class="annot-icon" style="color:var(--amber)">✦</span><span>Still useful for checksums</span></div>
+            <div class="annot"><span class="annot-icon" style="color:var(--amber)">⚠</span><span>Use SHA-256 for security-critical uses</span></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildDHUI(m) {
+  return `
+    <div class="info-box purple-box" style="margin-top:0">
+      <strong>How it works:</strong> Alice and Bob each pick a private key. Using public parameters (prime p, base g), they each compute a public value. They exchange public values and independently compute the same <strong>shared secret</strong> — without ever sending it.
+    </div>
+    <div class="section-title purple">⚙ Public Parameters</div>
+    <div class="key-block">
+      <span class="key-label" style="color:var(--purple)">PRIME p</span>
+      <div class="key-input-wrap">
+        <input class="styled-input" type="number" id="dh-p" value="23" min="5"/>
+      </div>
+      <span class="key-label" style="color:var(--purple);min-width:60px">BASE g</span>
+      <div class="key-input-wrap">
+        <input class="styled-input" type="number" id="dh-g" value="5" min="2"/>
+      </div>
+    </div>
+    <div class="section-title purple">🔑 Private Keys</div>
+    <div class="key-block">
+      <span class="key-label" style="color:var(--purple)">Alice's</span>
+      <div class="key-input-wrap">
+        <input class="styled-input" type="number" id="dh-a" value="6" min="2" placeholder="Alice private key"/>
+      </div>
+      <span class="key-label" style="color:var(--purple);min-width:60px">Bob's</span>
+      <div class="key-input-wrap">
+        <input class="styled-input" type="number" id="dh-b" value="15" min="2" placeholder="Bob private key"/>
+      </div>
+    </div>
+    <button class="action-btn purple" onclick="doDH()">🤝 COMPUTE KEY EXCHANGE</button>
+    <div class="output-panel" id="dh-output">
+      <div class="output-header">
+        <span class="output-label" style="color:var(--purple)">🔑 KEY EXCHANGE RESULTS</span>
+        <span class="output-meta">Diffie-Hellman Protocol</span>
+      </div>
+      <div class="output-body" id="dh-result-body"></div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//               CRYPTO IMPLEMENTATIONS
+// ═══════════════════════════════════════════════════════
+
+// ── Helper: simple key-based XOR stream ──
+function xorStream(text, key) {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    out += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return out;
+}
+function toHex(str) { return Array.from(str).map(c => c.charCodeAt(0).toString(16).padStart(2,'0')).join(''); }
+function fromHex(hex) {
+  let str = '';
+  for (let i = 0; i < hex.length; i += 2) str += String.fromCharCode(parseInt(hex.substr(i,2),16));
+  return str;
+}
+
+// ── AES-like simulation (XOR + substitution + rounds) ──
+const S_BOX = Array.from({length:256},(_,i) => ((i * 167 + 83) % 256));
+const S_BOX_INV = (() => { const t = new Array(256); S_BOX.forEach((v,k) => t[v]=k); return t; })();
+function aesSimEncrypt(text, key) {
+  if (!key) return '[No key provided]';
+  let bytes = Array.from(text).map(c => c.charCodeAt(0));
+  const kBytes = Array.from(key).map(c => c.charCodeAt(0));
+  // 3 rounds: SubBytes + AddRoundKey
+  for (let r = 0; r < 3; r++) {
+    bytes = bytes.map(b => S_BOX[b]);
+    bytes = bytes.map((b,i) => b ^ kBytes[(i + r) % kBytes.length]);
+  }
+  return toHex(String.fromCharCode(...bytes));
+}
+function aesSimDecrypt(hex, key) {
+  if (!key) return '[No key provided]';
+  try {
+    let bytes = Array.from(fromHex(hex)).map(c => c.charCodeAt(0));
+    const kBytes = Array.from(key).map(c => c.charCodeAt(0));
+    for (let r = 2; r >= 0; r--) {
+      bytes = bytes.map((b,i) => b ^ kBytes[(i + r) % kBytes.length]);
+      bytes = bytes.map(b => S_BOX_INV[b]);
+    }
+    return String.fromCharCode(...bytes);
+  } catch(e) { return '[Decryption failed — wrong key or malformed input]'; }
+}
+
+// ── DES simulation (simplified Feistel, 16 rounds) ──
+function desEncrypt(text, key) {
+  if (!key) return '[No key provided]';
+  const kBytes = Array.from(key.padEnd(8,'0').slice(0,8)).map(c => c.charCodeAt(0));
+  let bytes = Array.from(text).map(c => c.charCodeAt(0));
+  // 16 rounds of simple Feistel
+  for (let r = 0; r < 16; r++) {
+    bytes = bytes.map((b,i) => {
+      const k = kBytes[(i + r * 3) % 8];
+      return ((b ^ k) + r * 7) & 0xFF;
+    });
+  }
+  return toHex(String.fromCharCode(...bytes));
+}
+function desDecrypt(hex, key) {
+  if (!key) return '[No key provided]';
+  try {
+    const kBytes = Array.from(key.padEnd(8,'0').slice(0,8)).map(c => c.charCodeAt(0));
+    let bytes = Array.from(fromHex(hex)).map(c => c.charCodeAt(0));
+    for (let r = 15; r >= 0; r--) {
+      bytes = bytes.map((b,i) => {
+        const k = kBytes[(i + r * 3) % 8];
+        return ((b - r * 7 + 256) & 0xFF) ^ k;
+      });
+    }
+    return String.fromCharCode(...bytes);
+  } catch(e) { return '[Decryption failed]'; }
+}
+
+// ── Blowfish simulation (variable key Feistel) ──
+function blowfishEncrypt(text, key) {
+  if (!key) return '[No key provided]';
+  const kLen = key.length;
+  let bytes = Array.from(text).map(c => c.charCodeAt(0));
+  for (let r = 0; r < 16; r++) {
+    bytes = bytes.map((b,i) => {
+      const k = key.charCodeAt((i * 3 + r * 7) % kLen);
+      return (b ^ k ^ ((r * 31 + i * 17) & 0xFF)) & 0xFF;
+    });
+  }
+  return toHex(String.fromCharCode(...bytes));
+}
+function blowfishDecrypt(hex, key) {
+  if (!key) return '[No key provided]';
+  try {
+    const kLen = key.length;
+    let bytes = Array.from(fromHex(hex)).map(c => c.charCodeAt(0));
+    for (let r = 15; r >= 0; r--) {
+      bytes = bytes.map((b,i) => {
+        const k = key.charCodeAt((i * 3 + r * 7) % kLen);
+        return (b ^ k ^ ((r * 31 + i * 17) & 0xFF)) & 0xFF;
+      });
+    }
+    return String.fromCharCode(...bytes);
+  } catch(e) { return '[Decryption failed]'; }
+}
+
+// ── JCA simulation (AES-CBC style with IV) ──
+function jcaEncrypt(text, key) {
+  if (!key) return '[No key provided]';
+  // Generate pseudo-IV from key
+  const iv = Array.from(key.padEnd(8,'0')).map(c => (c.charCodeAt(0) * 37) & 0xFF);
+  let bytes = Array.from(text).map(c => c.charCodeAt(0));
+  const kBytes = Array.from(key).map(c => c.charCodeAt(0));
+  let prev = iv;
+  let out = [];
+  // CBC-like: XOR with previous block, then encrypt
+  for (let i = 0; i < bytes.length; i++) {
+    const xored = bytes[i] ^ prev[i % 8];
+    const enc = (xored ^ kBytes[i % kBytes.length] ^ (i * 13)) & 0xFF;
+    out.push(enc);
+    prev[i % 8] = enc;
+  }
+  // Prepend IV as hex
+  const ivHex = iv.map(b => b.toString(16).padStart(2,'0')).join('');
+  return 'JCA:' + ivHex + ':' + toHex(String.fromCharCode(...out));
+}
+function jcaDecrypt(cipher, key) {
+  if (!key) return '[No key provided]';
+  try {
+    const parts = cipher.split(':');
+    if (parts[0] !== 'JCA') return '[Invalid JCA format]';
+    const iv = parts[1].match(/.{2}/g).map(h => parseInt(h,16));
+    const hex = parts[2];
+    const kBytes = Array.from(key).map(c => c.charCodeAt(0));
+    let bytes = Array.from(fromHex(hex)).map(c => c.charCodeAt(0));
+    let prev = [...iv];
+    let out = [];
+    for (let i = 0; i < bytes.length; i++) {
+      const dec = (bytes[i] ^ kBytes[i % kBytes.length] ^ (i * 13)) & 0xFF;
+      out.push(dec ^ prev[i % 8]);
+      prev[i % 8] = bytes[i];
+    }
+    return String.fromCharCode(...out);
+  } catch(e) { return '[Decryption failed]'; }
+}
+
+// ── SHA-1 pure JS implementation ──
+function sha1(msg) {
+  function rotl(n,s){return (n<<s)|(n>>>(32-s));}
+  function tohex(n){return ('0000000'+n.toString(16)).slice(-8);}
+  const utf8 = unescape(encodeURIComponent(msg));
+  const bytes = Array.from(utf8).map(c => c.charCodeAt(0));
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while ((bytes.length % 64) !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push((bitLen / Math.pow(2, i*8)) & 0xFF);
+  let h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  for (let i = 0; i < bytes.length; i += 64) {
+    const w = [];
+    for (let j = 0; j < 16; j++) w[j] = (bytes[i+j*4]<<24)|(bytes[i+j*4+1]<<16)|(bytes[i+j*4+2]<<8)|bytes[i+j*4+3];
+    for (let j = 16; j < 80; j++) w[j] = rotl(w[j-3]^w[j-8]^w[j-14]^w[j-16],1);
+    let a=h0,b=h1,c=h2,d=h3,e=h4;
+    for (let j = 0; j < 80; j++) {
+      let f,k;
+      if(j<20){f=(b&c)|((~b)&d);k=0x5A827999;}
+      else if(j<40){f=b^c^d;k=0x6ED9EBA1;}
+      else if(j<60){f=(b&c)|(b&d)|(c&d);k=0x8F1BBCDC;}
+      else{f=b^c^d;k=0xCA62C1D6;}
+      const tmp=(rotl(a,5)+f+e+k+w[j])>>>0;
+      e=d;d=c;c=rotl(b,30);b=a;a=tmp;
+    }
+    h0=(h0+a)>>>0;h1=(h1+b)>>>0;h2=(h2+c)>>>0;h3=(h3+d)>>>0;h4=(h4+e)>>>0;
+  }
+  return tohex(h0)+tohex(h1)+tohex(h2)+tohex(h3)+tohex(h4);
+}
+
+// ── RSA simulation ──
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = result * base % mod;
+    exp = exp / 2n;
+    base = base * base % mod;
+  }
+  return result;
+}
+const RSA_PARAMS = { p:61n, q:53n, e:17n };
+function rsaSetup() {
+  const {p,q,e} = RSA_PARAMS;
+  const n = p*q;
+  const phi = (p-1n)*(q-1n);
+  // d = modular inverse of e mod phi
+  let [old_r,r] = [phi, e], [old_s,s] = [0n, 1n];
+  while (r !== 0n) {
+    const q2 = old_r / r;
+    [old_r,r] = [r, old_r - q2*r];
+    [old_s,s] = [s, old_s - q2*s];
+  }
+  const d = ((old_s % phi) + phi) % phi;
+  return { n, e, d };
+}
+function rsaEncrypt(text, _key) {
+  const {n, e} = rsaSetup();
+  const nums = Array.from(text).map(c => modPow(BigInt(c.charCodeAt(0)), e, n));
+  return nums.join(',') + `||RSA(n=${n},e=${e})`;
+}
+function rsaDecrypt(cipher, _key) {
+  try {
+    const [data] = cipher.split('||');
+    const {n, d} = rsaSetup();
+    return data.split(',').map(x => String.fromCharCode(Number(modPow(BigInt(x.trim()), d, n)))).join('');
+  } catch(e) { return '[RSA Decryption failed — ensure you paste the full RSA output]'; }
+}
+
+// ── Diffie-Hellman ──
+function dhExchange() {
+  const p = BigInt(document.getElementById('dh-p').value || 23);
+  const g = BigInt(document.getElementById('dh-g').value || 5);
+  const a = BigInt(document.getElementById('dh-a').value || 6);
+  const b = BigInt(document.getElementById('dh-b').value || 15);
+  const A = modPow(g, a, p); // Alice public
+  const B = modPow(g, b, p); // Bob public
+  const sA = modPow(B, a, p); // Alice shared
+  const sB = modPow(A, b, p); // Bob shared
+  return { p, g, a, b, A, B, sA, sB };
+}
+
+// ═══════════════════════════════════════════════════════
+//                    UI HANDLERS
+// ═══════════════════════════════════════════════════════
+function generateKey() {
+  const words = ['PHANTOM','NEBULA','CIPHER','VORTEX','ZENITH','QUASAR','MATRIX','ONYX','PRISM','SIGMA'];
+  const k = document.getElementById('enc-key');
+  if (k) k.value = words[Math.floor(Math.random()*words.length)] + (Math.floor(Math.random()*900)+100);
+}
+
+function doEncrypt() {
+  const m = currentMethod;
+  const text = document.getElementById('plain-text').value.trim();
+  const key = document.getElementById('enc-key').value.trim();
+  if (!text) { flashError('Enter a message to encrypt!'); return; }
+  const btn = document.querySelector('#operation .action-btn');
+  const orig = btn.textContent;
+  btn.textContent = '⚡ ENCRYPTING...'; btn.disabled = true;
+  setTimeout(() => {
+    let cipher = '';
+    if (m.id === 'aes') cipher = aesSimEncrypt(text, key);
+    else if (m.id === 'des') cipher = desEncrypt(text, key);
+    else if (m.id === 'blowfish') cipher = blowfishEncrypt(text, key);
+    else if (m.id === 'jca') cipher = jcaEncrypt(text, key);
+    else if (m.id === 'rsa') cipher = rsaEncrypt(text, key);
+    document.getElementById('cipher-text-val').querySelector('span').textContent = cipher;
+    document.getElementById('used-key-display').textContent = key || '(none)';
+    document.getElementById('enc-meta').textContent = `METHOD: ${m.name} | ${new Date().toLocaleTimeString()}`;
+    animateSecurity(m);
+    const panel = document.getElementById('enc-output');
+    panel.classList.add('visible');
+    setTimeout(() => panel.scrollIntoView({behavior:'smooth',block:'start'}), 100);
+    btn.textContent = orig; btn.disabled = false;
+  }, 700);
+}
+
+function doDecrypt() {
+  const m = currentMethod;
+  const cipher = document.getElementById('cipher-input').value.trim();
+  const key = document.getElementById('dec-key').value.trim();
+  if (!cipher) { flashError('Enter ciphertext to decrypt!'); return; }
+  const btn = document.querySelector('#operation .action-btn');
+  const orig = btn.textContent;
+  btn.textContent = '🔓 DECRYPTING...'; btn.disabled = true;
+  setTimeout(() => {
+    let plain = '';
+    if (m.id === 'aes') plain = aesSimDecrypt(cipher, key);
+    else if (m.id === 'des') plain = desDecrypt(cipher, key);
+    else if (m.id === 'blowfish') plain = blowfishDecrypt(cipher, key);
+    else if (m.id === 'jca') plain = jcaDecrypt(cipher, key);
+    else if (m.id === 'rsa') plain = rsaDecrypt(cipher, key);
+    document.getElementById('dec-result-val').querySelector('span').textContent = plain;
+    document.getElementById('dec-meta').textContent = `METHOD: ${m.name}`;
+    const panel = document.getElementById('dec-output');
+    panel.classList.add('visible');
+    setTimeout(() => panel.scrollIntoView({behavior:'smooth',block:'start'}), 100);
+    btn.textContent = orig; btn.disabled = false;
+  }, 600);
+}
+
+function doHash() {
+  const text = document.getElementById('hash-input').value.trim();
+  if (!text) { flashError('Enter text to hash!'); return; }
+  const btn = document.querySelector('#operation .action-btn');
+  const orig = btn.textContent;
+  btn.textContent = '⚙ COMPUTING...'; btn.disabled = true;
+  setTimeout(() => {
+    const h = sha1(text);
+    document.getElementById('hash-result-val').textContent = h;
+    const panel = document.getElementById('hash-output');
+    panel.classList.add('visible');
+    setTimeout(() => panel.scrollIntoView({behavior:'smooth',block:'start'}), 100);
+    btn.textContent = orig; btn.disabled = false;
+  }, 500);
+}
+
+function doDH() {
+  const r = dhExchange();
+  const body = document.getElementById('dh-result-body');
+  body.innerHTML = `
+    <div class="dh-step">
+      <div class="dh-step-label">Public Parameters (known to all)</div>
+      <div class="dh-step-val">Prime p = ${r.p} &nbsp;|&nbsp; Base g = ${r.g}</div>
+    </div>
+    <div class="dh-step">
+      <div class="dh-step-label">Alice computes her public key: A = g<sup>a</sup> mod p</div>
+      <div class="dh-step-val">A = ${r.g}<sup>${r.a}</sup> mod ${r.p} = <strong style="color:var(--cyan)">${r.A}</strong></div>
+    </div>
+    <div class="dh-step">
+      <div class="dh-step-label">Bob computes his public key: B = g<sup>b</sup> mod p</div>
+      <div class="dh-step-val">B = ${r.g}<sup>${r.b}</sup> mod ${r.p} = <strong style="color:var(--purple)">${r.B}</strong></div>
+    </div>
+    <div class="dh-step">
+      <div class="dh-step-label">Alice computes shared secret: s = B<sup>a</sup> mod p</div>
+      <div class="dh-step-val">s = ${r.B}<sup>${r.a}</sup> mod ${r.p} = ${r.sA}</div>
+    </div>
+    <div class="dh-step">
+      <div class="dh-step-label">Bob computes shared secret: s = A<sup>b</sup> mod p</div>
+      <div class="dh-step-val">s = ${r.A}<sup>${r.b}</sup> mod ${r.p} = ${r.sB}</div>
+    </div>
+    <div class="dh-step dh-shared">
+      <div class="dh-step-label">✅ Shared Secret (both computed independently)</div>
+      <div class="dh-step-val" style="font-size:1.5rem;color:var(--green);font-weight:bold">${r.sA}</div>
+      <div style="font-size:0.78rem;color:var(--dim);margin-top:0.5rem">Both Alice and Bob arrive at <strong>${r.sA}</strong> without ever transmitting it!</div>
+    </div>
+  `;
+  const panel = document.getElementById('dh-output');
+  panel.classList.add('visible');
+  setTimeout(() => panel.scrollIntoView({behavior:'smooth',block:'start'}), 100);
+}
+
+function animateSecurity(method) {
+  const pct = method.security;
+  let color, gradient;
+  if (pct<=20){color='var(--red)';gradient='linear-gradient(90deg,#ff1a40,#ff3366)';}
+  else if (pct<=45){color='var(--amber)';gradient='linear-gradient(90deg,#ff6600,#ffb700)';}
+  else if (pct<=70){color='#88aaff';gradient='linear-gradient(90deg,#4466ff,#88aaff)';}
+  else{color='var(--green)';gradient='linear-gradient(90deg,#00cc77,#00ff9d)';}
+  const secVal = document.getElementById('sec-percent');
+  const secMeter = document.getElementById('sec-meter');
+  secVal.style.color = color; secMeter.style.background = gradient;
+  let current = 0;
+  const interval = setInterval(() => {
+    current = Math.min(current + Math.ceil(pct/30), pct);
+    secVal.textContent = current + '%'; secMeter.style.width = current + '%';
+    if (current >= pct) clearInterval(interval);
+  }, 30);
+  const bars = document.getElementById('sec-bars');
+  const barCount = 20, filledBars = Math.round((pct/100)*barCount);
+  bars.innerHTML = Array.from({length:barCount},(_,i) => {
+    const filled = i < filledBars, delay = i * 40;
+    return `<div class="s-bar" style="background:${filled?color:'rgba(255,255,255,0.05)'};opacity:${filled?1:0.3};transition:background 0.3s ${delay}ms"></div>`;
+  }).join('');
+  document.getElementById('sec-annotations').innerHTML = method.annotations.map(a =>
+    `<div class="annot"><span class="annot-icon">${a[0]}</span><span>${a.slice(1).trim()}</span></div>`
+  ).join('');
+}
+
+function copyText(id) {
+  const el = document.getElementById(id);
+  const text = el.querySelector('span')?.textContent || el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'COPIED!'; setTimeout(() => btn.textContent = 'COPY', 1500); }
+  });
+}
+
+function flashError(msg) {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(255,30,60,0.15);border:1px solid var(--red);color:var(--red);padding:0.7rem 1.5rem;font-family:'Share Tech Mono',monospace;font-size:0.8rem;letter-spacing:0.1em;z-index:1000;border-radius:3px;box-shadow:0 0 20px rgba(255,30,60,0.3);`;
+  el.textContent = '⚠ ' + msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+//              ALGORITHM INFO MODAL DATA & LOGIC
+// ═══════════════════════════════════════════════════════
+const ALGO_DATA = {
+  aes: {
+    title: 'AES — Advanced Encryption Standard',
+    subtitle: 'Symmetric Block Cipher · NIST FIPS 197 · 2001',
+    color: 'cyan',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Algorithm Overview</div>
+        <p class="algo-para">AES is a <strong>substitution-permutation network (SPN)</strong> block cipher that operates on 128-bit (16-byte) blocks of data. It was selected by NIST in 2001 after a 5-year competition, replacing the aging DES standard.</p>
+        <p class="algo-para">AES supports three key lengths: <strong>128-bit (10 rounds)</strong>, 192-bit (12 rounds), and <strong>256-bit (14 rounds)</strong>. Each round applies four transformations: SubBytes, ShiftRows, MixColumns, and AddRoundKey.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 Round Structure</div>
+        <div class="rounds-visual">
+          <span class="round-pill">SubBytes</span>
+          <span class="round-pill">ShiftRows</span>
+          <span class="round-pill">MixColumns</span>
+          <span class="round-pill">AddRoundKey</span>
+          <span class="round-pill">× 10 Rounds</span>
+        </div>
+        <p class="algo-para"><strong>SubBytes:</strong> Each byte is replaced using a fixed 16×16 S-Box (based on GF(2⁸) multiplicative inverse). Provides <em>confusion</em>.</p>
+        <p class="algo-para"><strong>ShiftRows:</strong> Rows of the 4×4 state matrix are cyclically shifted left by 0, 1, 2, 3 bytes. Provides diffusion across columns.</p>
+        <p class="algo-para"><strong>MixColumns:</strong> Each column is multiplied by a fixed polynomial in GF(2⁸). Maximum diffusion — each output byte depends on all 4 input bytes.</p>
+        <p class="algo-para"><strong>AddRoundKey:</strong> XOR the state with the round subkey derived by the key schedule.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Architecture</div>
+        <div class="arch-flow">
+          <div class="arch-box highlight">Plaintext<br/>128-bit</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight amber">Key<br/>Expansion</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight">Initial<br/>AddRoundKey</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Round 1–9<br/>(4 steps)</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Final Round<br/>(no MixCols)</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight green">Ciphertext<br/>128-bit</div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Specifications</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Block Size</td><td><strong>128 bits</strong></td></tr>
+          <tr><td>Key Sizes</td><td><strong>128 / 192 / 256 bits</strong></td></tr>
+          <tr><td>Rounds</td><td><strong>10 / 12 / 14</strong></td></tr>
+          <tr><td>Structure</td><td>Substitution-Permutation Network (SPN)</td></tr>
+          <tr><td>Standard</td><td>NIST FIPS 197 (2001)</td></tr>
+          <tr><td>Common Modes</td><td>ECB, CBC, CTR, GCM</td></tr>
+          <tr><td>Known Attacks</td><td><strong class="green">None practical</strong> — computationally secure</td></tr>
+          <tr><td>Used In</td><td>TLS 1.3, WPA2/3, FileVault, AES-NI CPU instruction</td></tr>
+        </table>
+      </div>`,
+  },
+  des: {
+    title: 'DES — Data Encryption Standard',
+    subtitle: 'Symmetric Block Cipher · NIST FIPS 46 · 1977',
+    color: 'cyan',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Algorithm Overview</div>
+        <p class="algo-para">DES is a <strong>Feistel network</strong> cipher that encrypts 64-bit blocks using a 56-bit key. It was the dominant encryption standard for 20+ years but is now considered <strong>cryptographically broken</strong> due to its short key length.</p>
+        <p class="algo-para">The DES key is 64 bits long but only <strong>56 bits are used</strong> (8 bits are parity checks). This gives only 2⁵⁶ ≈ 72 quadrillion possible keys — trivially brute-forced by modern hardware.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 Feistel Round Structure (×16)</div>
+        <div class="rounds-visual">
+          <span class="round-pill amber">Initial Permutation (IP)</span>
+          <span class="round-pill amber">× 16 Feistel Rounds</span>
+          <span class="round-pill amber">Final Permutation (IP⁻¹)</span>
+        </div>
+        <p class="algo-para"><strong>Split:</strong> 64-bit block split into Left (L) and Right (R) halves of 32 bits each.</p>
+        <p class="algo-para"><strong>Each Round:</strong> Lₙ₊₁ = Rₙ, Rₙ₊₁ = Lₙ ⊕ F(Rₙ, Kₙ). The F-function expands R from 32→48 bits, XORs with subkey, passes through 8 S-Boxes (48→32 bits), then permutes.</p>
+        <p class="algo-para"><strong>Key Schedule:</strong> 16 subkeys (48-bit each) are derived from the 56-bit key via permuted choice (PC-1, PC-2) and left circular shifts.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Architecture</div>
+        <div class="arch-flow">
+          <div class="arch-box highlight amber">64-bit<br/>Plaintext</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Initial<br/>Permutation</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">L₀ | R₀<br/>32+32 bits</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">16× Feistel<br/>Rounds</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Final<br/>Permutation</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight amber">64-bit<br/>Ciphertext</div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Specifications</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Block Size</td><td><strong>64 bits</strong></td></tr>
+          <tr><td>Key Size</td><td><strong class="red">56 bits effective</strong> (64 bits with parity)</td></tr>
+          <tr><td>Rounds</td><td><strong>16</strong></td></tr>
+          <tr><td>Structure</td><td>Feistel Network</td></tr>
+          <tr><td>Published</td><td>1977 (NIST FIPS 46)</td></tr>
+          <tr><td>Status</td><td><strong class="red">DEPRECATED</strong> — cracked 1999 (22.5 hrs)</td></tr>
+          <tr><td>Successor</td><td>3DES (legacy), AES (current standard)</td></tr>
+        </table>
+      </div>`,
+  },
+  blowfish: {
+    title: 'Blowfish Cipher',
+    subtitle: 'Symmetric Block Cipher · Bruce Schneier · 1993',
+    color: 'cyan',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Algorithm Overview</div>
+        <p class="algo-para">Blowfish is a <strong>symmetric-key block cipher</strong> designed by Bruce Schneier in 1993. It was intended as a free, fast alternative to DES. Notably, it uses a <strong>variable-length key from 32 to 448 bits</strong>, making it adaptable for different security requirements.</p>
+        <p class="algo-para">Blowfish is unpatented and <strong>royalty-free</strong>. It became the basis for bcrypt, the most widely used password hashing function.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 Feistel Round Structure (×16)</div>
+        <div class="rounds-visual">
+          <span class="round-pill">P-Array Init</span>
+          <span class="round-pill">S-Box Init</span>
+          <span class="round-pill">× 16 Feistel Rounds</span>
+          <span class="round-pill">Output Transform</span>
+        </div>
+        <p class="algo-para"><strong>Key Schedule:</strong> Uses a 18-entry P-array and four 256-entry S-Boxes, all initialised with the hexadecimal digits of π. The key XORs into the P-array, then all boxes are encrypted with the cipher itself — making key setup expensive (bcrypt exploits this).</p>
+        <p class="algo-para"><strong>F-Function:</strong> Splits the 32-bit half into four 8-bit quarters (a,b,c,d). Output = ((S₁[a] + S₂[b]) ⊕ S₃[c]) + S₄[d] mod 2³².</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Architecture</div>
+        <div class="arch-flow">
+          <div class="arch-box highlight">64-bit<br/>Plaintext</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Split<br/>L | R</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">16× Feistel<br/>+ P-Array</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight amber">4× S-Boxes<br/>F-function</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Output<br/>Swap</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight green">Ciphertext</div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Specifications</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Block Size</td><td><strong>64 bits</strong></td></tr>
+          <tr><td>Key Size</td><td><strong>32 – 448 bits</strong> (variable)</td></tr>
+          <tr><td>Rounds</td><td><strong>16</strong> Feistel rounds</td></tr>
+          <tr><td>P-Array</td><td>18 × 32-bit subkeys</td></tr>
+          <tr><td>S-Boxes</td><td>4 × 256 entries (32-bit each)</td></tr>
+          <tr><td>Key Setup Cost</td><td>~521 iterations of cipher — <em>slow by design</em></td></tr>
+          <tr><td>Status</td><td><strong class="green">Secure</strong> — no effective cryptanalysis found</td></tr>
+          <tr><td>Notable Use</td><td>bcrypt password hashing (uses expensive key setup)</td></tr>
+        </table>
+      </div>`,
+  },
+  jca: {
+    title: 'JCA — Java Cryptography Architecture',
+    subtitle: 'Cryptographic Framework · Java SE · Provider-Based',
+    color: 'cyan',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Architecture Overview</div>
+        <p class="algo-para">JCA is <strong>not a cipher itself</strong> — it is a <em>cryptographic framework</em> built into the Java platform. It provides a unified API to access cryptographic primitives through interchangeable <strong>provider plugins</strong>.</p>
+        <p class="algo-para">Developers call <code>Cipher.getInstance("AES/CBC/PKCS5Padding")</code> without knowing which provider implements it. Sun/Oracle, BouncyCastle, and IBM are common providers.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 CBC Mode Operation (simulated here)</div>
+        <div class="rounds-visual">
+          <span class="round-pill amber">Generate IV</span>
+          <span class="round-pill amber">XOR with Prev Block</span>
+          <span class="round-pill amber">Block Cipher (AES)</span>
+          <span class="round-pill amber">Chain Output</span>
+        </div>
+        <p class="algo-para"><strong>Cipher Block Chaining (CBC):</strong> Each plaintext block is XORed with the previous ciphertext block before encryption. The first block is XORed with a random <strong>Initialisation Vector (IV)</strong>. This makes identical plaintext blocks produce different ciphertext.</p>
+        <p class="algo-para"><strong>PKCS5 Padding:</strong> If the last block is shorter than 16 bytes, it is padded with bytes equal to the number of padding bytes needed (e.g., 3 bytes of <code>03 03 03</code>).</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Provider Architecture</div>
+        <div class="arch-stack">
+          <div class="arch-row">
+            <div class="arch-box highlight" style="flex:1;text-align:center">Application Code — Cipher.getInstance()</div>
+          </div>
+          <div style="text-align:center;color:var(--border);font-size:1.2rem;padding:2px">↕</div>
+          <div class="arch-row">
+            <div class="arch-box" style="flex:1;text-align:center">JCA Security API (java.security, javax.crypto)</div>
+          </div>
+          <div style="text-align:center;color:var(--border);font-size:1.2rem;padding:2px">↕</div>
+          <div class="arch-row" style="gap:0.5rem">
+            <div class="arch-box highlight amber" style="flex:1;text-align:center">SunJCE Provider</div>
+            <div class="arch-box" style="flex:1;text-align:center">BouncyCastle</div>
+            <div class="arch-box" style="flex:1;text-align:center">IBMJCE</div>
+          </div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Key Facts</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Type</td><td><strong>Framework</strong> (not a cipher)</td></tr>
+          <tr><td>Simulated Mode</td><td><strong>AES / CBC / PKCS5Padding</strong></td></tr>
+          <tr><td>IV Size</td><td><strong>128 bits</strong> (random per session)</td></tr>
+          <tr><td>Supported Algorithms</td><td>AES, DES, RSA, SHA, HMAC, DSA, ECDSA, …</td></tr>
+          <tr><td>Provider Model</td><td>Pluggable — algorithm-agnostic code</td></tr>
+          <tr><td>Introduced</td><td>Java 1.1 (1997), major update Java 1.4</td></tr>
+          <tr><td>Security</td><td><strong class="green">Strong</strong> when using AES-GCM or AES-CBC with random IV</td></tr>
+        </table>
+      </div>`,
+  },
+  sha1: {
+    title: 'SHA-1 — Secure Hash Algorithm 1',
+    subtitle: 'Cryptographic Hash Function · NSA / NIST · 1995',
+    color: 'amber',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Algorithm Overview</div>
+        <p class="algo-para">SHA-1 is a <strong>cryptographic hash function</strong> that produces a 160-bit (20-byte) digest from any input. It is a <em>one-way function</em> — you cannot reverse the hash to get the original input. Even a 1-character change in input completely changes the output (<strong>avalanche effect</strong>).</p>
+        <p class="algo-para">SHA-1 was officially broken in 2017 when Google and CWI Amsterdam published the <strong>SHAttered attack</strong> — two different PDF files with the same SHA-1 hash (a collision). Use SHA-256 or SHA-3 for security-critical applications.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 Message Processing</div>
+        <div class="rounds-visual">
+          <span class="round-pill amber">Pre-processing</span>
+          <span class="round-pill amber">512-bit Chunks</span>
+          <span class="round-pill amber">80 Rounds</span>
+          <span class="round-pill amber">160-bit Digest</span>
+        </div>
+        <p class="algo-para"><strong>Pre-processing:</strong> Message is padded to a multiple of 512 bits. Padding adds a '1' bit, then '0' bits, then a 64-bit representation of the original message length.</p>
+        <p class="algo-para"><strong>Message Schedule:</strong> Each 512-bit chunk is expanded into 80 32-bit words W₀–W₇₉. W[i] = ROTL¹(W[i-3] ⊕ W[i-8] ⊕ W[i-14] ⊕ W[i-16]) for i ≥ 16.</p>
+        <p class="algo-para"><strong>Compression:</strong> Five 32-bit state variables (a,b,c,d,e) are updated over 80 rounds using bitwise functions and additive constants K₀–K₃, all derived from √2, √3, √5, √10.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Architecture</div>
+        <div class="arch-flow">
+          <div class="arch-box highlight amber">Input<br/>Message</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Pad to<br/>512-bit multiple</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight amber">H₀–H₄<br/>Init (5×32-bit)</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">Process<br/>Each Chunk</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box">80 Rounds<br/>(a,b,c,d,e)</div>
+          <span class="arch-arrow">→</span>
+          <div class="arch-box highlight amber">160-bit<br/>Digest</div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Specifications</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Output Size</td><td><strong>160 bits</strong> (40 hex characters)</td></tr>
+          <tr><td>Block Size</td><td><strong>512 bits</strong></td></tr>
+          <tr><td>Word Size</td><td>32 bits</td></tr>
+          <tr><td>Rounds</td><td><strong>80</strong> (4 groups of 20)</td></tr>
+          <tr><td>State Variables</td><td>5 × 32-bit (H₀ to H₄)</td></tr>
+          <tr><td>Reversible?</td><td><strong class="red">No</strong> — one-way function</td></tr>
+          <tr><td>Collision Attack</td><td><strong class="red">SHAttered (2017)</strong> — practical SHA-1 collision found</td></tr>
+          <tr><td>Recommendation</td><td>Use <strong class="green">SHA-256</strong> or SHA-3 for new systems</td></tr>
+        </table>
+      </div>`,
+  },
+  rsa: {
+    title: 'RSA — Rivest–Shamir–Adleman',
+    subtitle: 'Asymmetric Public-Key Cryptosystem · MIT · 1977',
+    color: 'purple',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Algorithm Overview</div>
+        <p class="algo-para">RSA is based on the mathematical difficulty of <strong>factoring the product of two large prime numbers</strong>. Given n = p × q, finding p and q when n is very large (2048+ bits) is computationally infeasible with current technology.</p>
+        <p class="algo-para">RSA has two operations: <strong>encryption</strong> uses the public key (n, e) and <strong>decryption</strong> uses the private key (n, d). A message encrypted with the public key can only be decrypted with the corresponding private key.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 Key Generation Steps</div>
+        <div class="rounds-visual">
+          <span class="round-pill purple">Choose p, q (primes)</span>
+          <span class="round-pill purple">n = p × q</span>
+          <span class="round-pill purple">φ(n) = (p-1)(q-1)</span>
+          <span class="round-pill purple">Choose e: gcd(e,φ)=1</span>
+          <span class="round-pill purple">d = e⁻¹ mod φ(n)</span>
+        </div>
+        <p class="algo-para"><strong>Public key:</strong> (n, e) — share this openly. Common values for e: 65537 (2¹⁶+1).</p>
+        <p class="algo-para"><strong>Private key:</strong> (n, d) — keep this secret. d is the modular inverse of e modulo φ(n).</p>
+        <p class="algo-para"><strong>Encryption:</strong> C = Mᵉ mod n — raise message M to power e, then modulo n.</p>
+        <p class="algo-para"><strong>Decryption:</strong> M = Cᵈ mod n — raise ciphertext C to power d, then modulo n.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Architecture</div>
+        <div class="arch-stack">
+          <div class="arch-row" style="gap:0.5rem;margin-bottom:0.6rem">
+            <div class="arch-box highlight purple" style="flex:1;text-align:center">Key Generation<br/>p, q → n, e, d</div>
+          </div>
+          <div class="arch-row" style="gap:0.5rem">
+            <div class="arch-box highlight purple" style="flex:1;text-align:center">Encrypt<br/>C = Mᵉ mod n<br/>(Public Key)</div>
+            <span class="arch-arrow" style="align-self:center;font-size:1.5rem">⇄</span>
+            <div class="arch-box" style="flex:1;text-align:center">Decrypt<br/>M = Cᵈ mod n<br/>(Private Key)</div>
+          </div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Specifications</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Based On</td><td><strong>Integer Factorisation Problem</strong></td></tr>
+          <tr><td>Recommended Key</td><td><strong>2048 bits</strong> minimum (4096 for long-term)</td></tr>
+          <tr><td>This Simulation</td><td>p=61, q=53, n=3233, e=17 (toy RSA)</td></tr>
+          <tr><td>Encryption Formula</td><td>C = Mᵉ mod n</td></tr>
+          <tr><td>Decryption Formula</td><td>M = Cᵈ mod n</td></tr>
+          <tr><td>Padding</td><td>Real RSA uses OAEP or PKCS#1 v2 padding</td></tr>
+          <tr><td>Speed</td><td><strong class="amber">Slow</strong> — 1000× slower than AES; used only for key exchange</td></tr>
+          <tr><td>Post-Quantum</td><td><strong class="red">Vulnerable</strong> to Shor's algorithm on quantum computers</td></tr>
+        </table>
+      </div>`,
+  },
+  dh: {
+    title: 'Diffie-Hellman Key Exchange',
+    subtitle: 'Asymmetric Key Agreement Protocol · Diffie & Hellman · 1976',
+    color: 'purple',
+    algorithm: `
+      <div class="algo-section">
+        <div class="algo-section-title">📐 Algorithm Overview</div>
+        <p class="algo-para">Diffie-Hellman (DH) is a <strong>key agreement protocol</strong> that allows two parties to establish a shared secret over an insecure public channel — without ever transmitting the secret itself. It was the first practical public-key cryptographic protocol, published in 1976.</p>
+        <p class="algo-para">DH relies on the <strong>Discrete Logarithm Problem</strong>: given g, p, and gˣ mod p, it is computationally hard to find x. This asymmetry enables the protocol's security.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🔄 Protocol Steps</div>
+        <div class="rounds-visual">
+          <span class="round-pill purple">Agree on (p, g)</span>
+          <span class="round-pill purple">Alice picks a</span>
+          <span class="round-pill purple">Bob picks b</span>
+          <span class="round-pill purple">Exchange A, B</span>
+          <span class="round-pill purple">Compute Shared Secret</span>
+        </div>
+        <p class="algo-para"><strong>Step 1:</strong> Agree on public parameters — large prime <em>p</em> and generator <em>g</em> (primitive root mod p).</p>
+        <p class="algo-para"><strong>Step 2:</strong> Alice picks private key <em>a</em>, computes <strong>A = gᵃ mod p</strong> and sends A to Bob.</p>
+        <p class="algo-para"><strong>Step 3:</strong> Bob picks private key <em>b</em>, computes <strong>B = gᵇ mod p</strong> and sends B to Alice.</p>
+        <p class="algo-para"><strong>Step 4:</strong> Alice computes <strong>s = Bᵃ mod p</strong>. Bob computes <strong>s = Aᵇ mod p</strong>. Both arrive at the same shared secret s = gᵃᵇ mod p.</p>
+        <p class="algo-para">An eavesdropper sees only g, p, A, and B — they cannot derive the shared secret without solving the discrete logarithm problem.</p>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">🏗️ Architecture — Exchange Diagram</div>
+        <div class="arch-stack">
+          <div class="arch-row" style="gap:0.5rem;margin-bottom:0.5rem">
+            <div class="arch-box highlight purple" style="flex:1;text-align:center">ALICE<br/>Private: a<br/>Public: A=gᵃ mod p</div>
+            <div class="arch-box" style="flex:0.6;text-align:center;align-self:center">Public Channel<br/>(p, g, A, B visible)</div>
+            <div class="arch-box highlight purple" style="flex:1;text-align:center">BOB<br/>Private: b<br/>Public: B=gᵇ mod p</div>
+          </div>
+          <div class="arch-row" style="gap:0.5rem">
+            <div class="arch-box highlight green" style="flex:1;text-align:center">Shared Secret<br/>s = Bᵃ mod p</div>
+            <div class="arch-box" style="flex:0.6;text-align:center;align-self:center;font-size:0.65rem;color:var(--red)">⚠ Attacker cannot compute s</div>
+            <div class="arch-box highlight green" style="flex:1;text-align:center">Shared Secret<br/>s = Aᵇ mod p</div>
+          </div>
+        </div>
+      </div>
+      <div class="algo-section">
+        <div class="algo-section-title">📊 Specifications</div>
+        <table class="specs-table">
+          <tr><th>Property</th><th>Value</th></tr>
+          <tr><td>Type</td><td><strong>Key Agreement</strong> (not encryption)</td></tr>
+          <tr><td>Based On</td><td><strong>Discrete Logarithm Problem</strong></td></tr>
+          <tr><td>Recommended p</td><td><strong>2048–4096 bits</strong> (NIST SP 800-56A)</td></tr>
+          <tr><td>Variants</td><td>ECDH (Elliptic Curve DH), DHE (Ephemeral), X25519</td></tr>
+          <tr><td>Forward Secrecy</td><td><strong class="green">Yes</strong> when ephemeral keys used (DHE)</td></tr>
+          <tr><td>Used In</td><td>TLS 1.3, Signal Protocol, SSH, PGP</td></tr>
+          <tr><td>Post-Quantum</td><td><strong class="red">Vulnerable</strong> to Shor's algorithm</td></tr>
+          <tr><td>Published</td><td>1976 — Whitfield Diffie & Martin Hellman</td></tr>
+        </table>
+      </div>`,
+  }
+};
+
+function openAlgoModal(methodId) {
+  const data = ALGO_DATA[methodId];
+  if (!data) return;
+  const isPurple = data.color === 'purple';
+  const overlay = document.getElementById('algo-modal-overlay');
+  const head = document.getElementById('algo-modal-head');
+  const title = document.getElementById('algo-modal-title');
+  const subtitle = document.getElementById('algo-modal-subtitle');
+  const body = document.getElementById('algo-modal-body');
+
+  head.className = 'algo-modal-head' + (isPurple ? ' purple-head' : '');
+  title.className = 'algo-modal-title' + (isPurple ? ' purple' : '');
+  title.textContent = data.title;
+  subtitle.textContent = data.subtitle;
+  body.innerHTML = data.algorithm;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAlgoModal(event) {
+  if (event && event.target !== document.getElementById('algo-modal-overlay')) return;
+  document.getElementById('algo-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAlgoModal(null); });
+
+// ═══════════════════════════════════════════════════════
+//                  MATRIX RAIN CANVAS
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, drops;
+const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()アイウエオカキクケコ';
+function initCanvas(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;const cols=Math.floor(W/16);drops=Array(cols).fill(1);}
+function drawMatrix(){
+  ctx.fillStyle='rgba(2,4,8,0.06)';ctx.fillRect(0,0,W,H);ctx.font='12px Share Tech Mono';
+  drops.forEach((y,i)=>{
+    const c=chars[Math.floor(Math.random()*chars.length)];
+    const bright=Math.random()>0.95;
+    ctx.fillStyle=bright?'rgba(0,229,255,0.9)':`rgba(0,${Math.floor(Math.random()*100+100)},${Math.floor(Math.random()*50+180)},0.6)`;
+    ctx.fillText(c,i*16,y*16);
+    if(y*16>H&&Math.random()>0.975)drops[i]=0;
+    drops[i]++;
+  });
+}
+initCanvas();
+window.addEventListener('resize',initCanvas);
+setInterval(drawMatrix,50);
+</script>
+</body>
+</html>
